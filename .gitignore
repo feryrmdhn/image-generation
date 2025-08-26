@@ -1,0 +1,23 @@
+# Python bytecode files
+*.pyc
+*.pyo
+__pycache__/
+/lib/
+
+# Virtual environment
+venv/
+env/
+__env__/
+
+# IDEs
+.vscode/
+.idea/
+
+# Env
+.env
+
+# Pipenv files
+Pipfile.lock
+
+# MacOS specific
+.DS_Store
