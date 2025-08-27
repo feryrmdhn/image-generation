@@ -2,7 +2,7 @@ import boto3
 from dotenv import load_dotenv
 import os
 
-# Run python -m app.services.test_connection
+# Run python -m app.utils.test_connection
 
 load_dotenv()
 
