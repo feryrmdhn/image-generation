@@ -15,6 +15,7 @@ def check_bedrock():
         if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY:
             return "GAGAL menemukan credentials"
         
+        # Client bedrock untuk list models
         client = boto3.client(
             'bedrock',
             region_name=AWS_REGION,
@@ -26,14 +27,6 @@ def check_bedrock():
 
     except Exception as e:
         return f"Error: {str(e)}"
-
-def get_bedrock_client():
-    return boto3.client(
-        'bedrock-runtime',
-        region_name=AWS_REGION,
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY
-    )
 
 if __name__ == "__main__":
     print(check_bedrock())

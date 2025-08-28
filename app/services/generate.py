@@ -8,6 +8,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
+from app.utils.utils import get_bedrock_client
 
 load_dotenv()
 
@@ -47,15 +48,10 @@ def generate_image_service(
         if not AWS_BUCKET_NAME:
             return {"error": "AWS_BUCKET_NAME tidak ditemukan"}
         
-        # Setup Bedrock client
-        bedrock_client = boto3.client(
-            'bedrock-runtime',
-            region_name=AWS_REGION,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY
-        )
+        # Inisialisasi Bedrock client
+        bedrock_client = get_bedrock_client()
         
-        # Setup S3 client
+        # Inisialisasi S3 client
         s3_client = boto3.client(
             's3',
             region_name=AWS_REGION,
@@ -147,11 +143,3 @@ async def generate_image_endpoint(request: ImageGenerateRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-def get_bedrock_client():
-    return boto3.client(
-        'bedrock-runtime',
-        region_name=AWS_REGION,
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY
-    )
