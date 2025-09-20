@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 import uuid
+import random
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
@@ -18,13 +19,15 @@ AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_BUCKET_NAME = os.getenv('AWS_BUCKET_NAME')
 AWS_BEDROCK_MODEL_ID = os.getenv('AWS_BEDROCK_MODEL_ID')
+AWS_BEDROCK_GUARDRAIL_ID = os.getenv('AWS_BEDROCK_GUARDRAIL_ID')
 
-router = APIRouter(prefix="/generate", tags=["Image Generation"])
+router = APIRouter(prefix="/titan-generate", tags=["Titan Image Generation"])
 
 # Pydantic models
 class ImageGenerateRequest(BaseModel):
     prompt: str
     number_of_images: Optional[int] = 1
+    input_size: Optional[str] = "landscape"  # 'landscape' atau 'potrait'
 
 class ImageMetadata(BaseModel):
     prompt: str
@@ -38,15 +41,25 @@ class ImageGenerateResponse(BaseModel):
 
 def generate_image_service(
     prompt: str,
-    number_of_images: int = 1
+    number_of_images: int = 1,
+    input_size: str = "landscape"
 ):
     try:
-        # Validate inputs
+        # Validasi input
         if not prompt:
             return {"error": "Prompt tidak boleh kosong"}
-        
         if not AWS_BUCKET_NAME:
             return {"error": "AWS_BUCKET_NAME tidak ditemukan"}
+        if number_of_images > 5:
+            return {"error": "Maksimal jumlah gambar yang dapat di-generate adalah 5."}
+        if input_size not in ["landscape", "portrait"]:
+            return {"error": "input_size harus 'landscape' atau 'portrait'"}
+
+        # Set ukuran gambar sesuai input_size
+        if input_size == "landscape":
+            width, height = 1152, 768
+        else:
+            width, height = 448, 576
         
         # Inisialisasi Bedrock client
         bedrock_client = get_bedrock_client()
@@ -59,7 +72,7 @@ def generate_image_service(
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY
         )
         
-        negative_prompt = "low quality, bad quality, worst quality, blurry, out of focus, deformed, unrealistic, unreal, bad anatomy"
+        negative_prompt = "low quality, bad quality, worst quality, blurry, out of focus, deformed, bad anatomy, cross-eye, deformed eyes"
         
         # Prepare request body untuk Amazon Titan Image Generator (correct format)
         request_body = {
@@ -70,11 +83,11 @@ def generate_image_service(
             },
             "imageGenerationConfig": {
                 "numberOfImages": min(number_of_images, 5),
-                "quality": "standard",
-                "height": 1024,
-                "width": 1024,
+                "quality": "premium",
+                "width": width,
+                "height": height,
                 "cfgScale": 8,
-                "seed": 0
+                "seed": random.randint(0, 9999999)
             }
         }
         
@@ -82,11 +95,27 @@ def generate_image_service(
         response = bedrock_client.invoke_model(
             modelId=AWS_BEDROCK_MODEL_ID,
             body=json.dumps(request_body),
-            contentType='application/json'
+            contentType='application/json',
+            accept='application/json',
+            guardrailIdentifier=AWS_BEDROCK_GUARDRAIL_ID,
+            guardrailVersion="DRAFT"
         )
         
         # Parse response
         response_body = json.loads(response['body'].read())
+
+        guardrail_action = response_body.get("amazon-bedrock-guardrailAction")
+        
+        if guardrail_action == "INTERVENED":
+            return {
+                "status": 502,
+                "message": "Maaf, Prompt yang anda gunakan melanggar kebijakan kami",
+                "data": [],
+                "metadata": {
+                    "prompt": prompt,
+                    "number_of_images": number_of_images
+                }
+            }
         
         # Store images ke S3 (Titan response format)
         image_urls = []
@@ -128,18 +157,13 @@ def generate_image_service(
 
 @router.post("/image", response_model=ImageGenerateResponse)
 async def generate_image_endpoint(request: ImageGenerateRequest):
-    try:
-        result = generate_image_service(
-            prompt=request.prompt,
-            number_of_images=request.number_of_images
-        )
-        
-        if "error" in result:
-            raise HTTPException(status_code=400, detail=result["error"])
-        
-        return ImageGenerateResponse(**result)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    result = generate_image_service(
+        prompt=request.prompt,
+        number_of_images=request.number_of_images,
+        input_size=request.input_size or "landscape"
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    if result["status"] >= 400:
+        raise HTTPException(status_code=result["status"], detail=result["message"])
+    return ImageGenerateResponse(**result)

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.services.generate import router as generate_router
-
+from app.services.titan_generate import router as generate_router
+from app.services.stability_generate import router as stability_router
 app = FastAPI(
     title="Imagen API",
     description="AI Image Generation API using AWS Bedrock",
@@ -25,4 +25,4 @@ def read_root():
     }
 
 app.include_router(generate_router)
-
+app.include_router(stability_router)
