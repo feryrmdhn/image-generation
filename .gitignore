@@ -8,6 +8,7 @@ __pycache__/
 venv/
 env/
 __env__/
+bin/
 
 # IDEs
 .vscode/
