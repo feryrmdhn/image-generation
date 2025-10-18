@@ -20,7 +20,7 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {
-        "message": "Imagen API - AI Image Generation Service",
+        "message": "Ok",
         "version": "1.0.0",
     }
 
